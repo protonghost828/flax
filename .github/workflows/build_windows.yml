@@ -1,58 +1,62 @@
-name: Build Windows
-on: [push, pull_request]
+name: Build Flax Engine Editor (Windows)
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
 
 env:
   DOTNET_NOLOGO: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: false
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-
-  # Editor
-  editor-windows:
-    name: Editor (Windows, Development x64)
-    runs-on: "windows-2022"
+  build-editor:
+    name: Windows Editor Build
+    runs-on: windows-2022
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
-    - name: Setup Vulkan
-      uses: ./.github/actions/vulkan
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: 8.0.x
-    - name: Print .NET info
-      run: |
-        dotnet --info
-        dotnet workload --info
-    - name: Checkout LFS
-      run: |
-        git lfs version
-        git lfs pull
-    - name: Build
-      run: |
-        .\Development\Scripts\Windows\CallBuildTool.bat -build -log -printSDKs -dotnet=8 -arch=x64 -platform=Windows -configuration=Development -buildtargets=FlaxEditor
+      # ——————————————————————————————————————
+      # Checkout with Git LFS
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
 
-  # Game
-  game-windows:
-    name: Game (Windows, Release x64)
-    runs-on: "windows-2022"
-    steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
-    - name: Setup Vulkan
-      uses: ./.github/actions/vulkan
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: 8.0.x
-    - name: Print .NET info
-      run: |
-        dotnet --info
-        dotnet workload --info
-    - name: Checkout LFS
-      run: |
-        git lfs version
-        git lfs pull
-    - name: Build
-      run: |
-        .\Development\Scripts\Windows\CallBuildTool.bat -build -log -printSDKs -dotnet=8 -arch=x64 -platform=Windows -configuration=Release -buildtargets=FlaxGame
+      # ——————————————————————————————————————
+      # Install .NET + Vulkan dependencies
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Print .NET info
+        run: |
+          dotnet --info
+          dotnet workload --info
+
+      - name: Setup Vulkan
+        uses: ./.github/actions/vulkan
+
+      # ——————————————————————————————————————
+      # Build Editor
+      - name: Build Windows Editor
+        run: |
+          .\Development\Scripts\Windows\CallBuildTool.bat ^
+            -build -log -printSDKs -dotnet=8 ^
+            -arch=x64 -platform=Windows ^
+            -configuration=Development ^
+            -buildtargets=FlaxEditor
+
+      # ——————————————————————————————————————
+      # Package Editor
+      - name: Package Editor Build
+        run: |
+          powershell Compress-Archive -Path ".\Build\Windows\x64\FlaxEditor\*" `
+            -DestinationPath ".\FlaxEditor-Full.zip" -Force
+
+      # ——————————————————————————————————————
+      # Upload ZIP artifact
+      - name: Upload Editor Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlaxEditor-Windows-Full
+          path: .\FlaxEditor-Full.zip
