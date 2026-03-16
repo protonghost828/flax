@@ -1,0 +1,61 @@
+name: Build Flax Engine Editor (Windows)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-editor:
+    name: Windows Editor Build
+    runs-on: windows-2022
+    steps:
+      # Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true  # Pull LFS objects directly
+
+      # Install .NET
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Print .NET info
+        run: |
+          dotnet --info
+          dotnet workload --info
+
+      # Vulkan setup (assuming your action exists)
+      - name: Setup Vulkan
+        uses: ./.github/actions/vulkan
+
+      # Build Flax Editor
+      - name: Build Windows Editor (Full)
+        run: |
+          .\Development\Scripts\Windows\CallBuildTool.bat ^
+            -build -log -printSDKs -dotnet=8 ^
+            -arch=x64 -platform=Windows ^
+            -configuration=Development ^
+            -buildtargets=FlaxEditor,FlaxGame,FlaxTools
+
+      # Package as portable app
+      - name: Package Portable Editor
+        run: |
+          # Copy all necessary files to a single folder
+          mkdir PortableFlaxEditor
+          xcopy /E /I /Y ".\Build\Windows\x64\*" "PortableFlaxEditor\"
+
+          # Create ZIP of portable folder
+          powershell Compress-Archive `
+            -Path ".\PortableFlaxEditor\*" `
+            -DestinationPath ".\FlaxEditor-Portable.zip" -Force
+
+      # Upload artifact
+      - name: Upload Portable Editor
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlaxEditor-Windows-Portable
+          path: .\FlaxEditor-Portable.zip
